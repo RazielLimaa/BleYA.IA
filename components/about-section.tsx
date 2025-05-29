@@ -1,4 +1,5 @@
 "use client"
+
 import { Code, Brain, Rocket } from "lucide-react"
 import ShinyText from "@/components/shiny-text"
 import PixelCard from "@/components/pixel-card"

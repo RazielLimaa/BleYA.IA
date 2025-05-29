@@ -48,7 +48,7 @@ function map(n: number, start: number, stop: number, start2: number, stop2: numb
   return ((n - start) / (stop - start)) * (stop2 - start2) + start2
 }
 
-const PX_RATIO = typeof window !== "undefined" ? window.devicePixelRatio : 1
+const PX_RATIO = 1
 
 interface AsciiFilterOptions {
   fontSize?: number
@@ -429,7 +429,7 @@ class CanvAscii {
   }
 
   clear() {
-    this.scene.traverse((object) => {
+    this.scene.traverse((object: unknown) => {
       const obj = object as unknown as THREE.Mesh
       if (!obj.isMesh) return
       ;[obj.material].flat().forEach((material) => {
