@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Copy, Check, FileCode, Terminal, Database, Globe, Cpu } from "lucide-react"
 import type { JSX } from "react"
 
 interface MessageContentProps {
   content: string
+  isTyping?: boolean
 }
 
 interface CodeBlockProps {
@@ -14,6 +15,7 @@ interface CodeBlockProps {
   showLineNumbers?: boolean
 }
 
+// Modificar o CodeBlock para ser mais responsivo
 function CodeBlock({ language, code, showLineNumbers = true }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
 
@@ -44,155 +46,167 @@ function CodeBlock({ language, code, showLineNumbers = true }: CodeBlockProps) {
   const highlightCode = (code: string, lang: string) => {
     const langLower = lang.toLowerCase()
 
-    // JavaScript/TypeScript
+    // Escape HTML first
+    let escapedCode = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+
+    // JavaScript/TypeScript - approach mais simples
     if (["javascript", "js", "typescript", "ts", "jsx", "tsx"].includes(langLower)) {
-      return code
-        .replace(
-          /\b(function|const|let|var|if|else|for|while|return|import|export|class|extends|async|await|try|catch|finally|throw|new|this|super|static|public|private|protected|interface|type|enum|namespace)\b/g,
-          '<span class="keyword">$1</span>',
-        )
-        .replace(/\b(true|false|null|undefined|NaN|Infinity)\b/g, '<span class="boolean">$1</span>')
-        .replace(/(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g, '<span class="string">$1$2$1</span>')
-        .replace(/(\/\/.*$)/gm, '<span class="comment">$1</span>')
-        .replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="comment">$1</span>')
-        .replace(/\b(\d+\.?\d*)\b/g, '<span class="number">$1</span>')
-        .replace(
-          /\b(console|document|window|Array|Object|String|Number|Boolean|Date|Math|JSON|Promise|Set|Map)\b/g,
-          '<span class="builtin">$1</span>',
-        )
+      // Apenas keywords básicas, sem regex complexos
+      const keywords = [
+        "function",
+        "const",
+        "let",
+        "var",
+        "if",
+        "else",
+        "for",
+        "while",
+        "return",
+        "import",
+        "export",
+        "class",
+        "extends",
+        "async",
+        "await",
+        "try",
+        "catch",
+        "finally",
+        "throw",
+        "new",
+        "this",
+        "super",
+      ]
+
+      const booleans = ["true", "false", "null", "undefined"]
+      const builtins = ["console", "document", "window", "Array", "Object", "String", "Number"]
+
+      // Aplicar highlighting palavra por palavra
+      keywords.forEach((keyword) => {
+        const regex = new RegExp(`\\b${keyword}\\b`, "g")
+        escapedCode = escapedCode.replace(regex, `${keyword}`)
+      })
+
+      booleans.forEach((bool) => {
+        const regex = new RegExp(`\\b${bool}\\b`, "g")
+        escapedCode = escapedCode.replace(regex, `${bool}`)
+      })
+
+      builtins.forEach((builtin) => {
+        const regex = new RegExp(`\\b${builtin}\\b`, "g")
+        escapedCode = escapedCode.replace(regex, `${builtin}`)
+      })
+
+      // Strings simples
+      escapedCode = escapedCode.replace(/(&quot;[^&]*?&quot;)/g, '<span style="color: #fde047;">$1</span>')
+      escapedCode = escapedCode.replace(/(&#39;[^&]*?&#39;)/g, '<span style="color: #fde047;">$1</span>')
+
+      // Comentários simples
+      escapedCode = escapedCode.replace(/(\/\/.*$)/gm, '<span style="color: #6b7280; font-style: italic;">$1</span>')
+
+      // Números simples
+      escapedCode = escapedCode.replace(/\b(\d+)\b/g, '<span style="color: #60a5fa;">$1</span>')
     }
-    // Python
+    // Python - approach similar
     else if (["python", "py"].includes(langLower)) {
-      return code
-        .replace(
-          /\b(def|class|if|elif|else|for|while|return|import|from|try|except|finally|with|as|lambda|yield|async|await|global|nonlocal|pass|break|continue|raise|assert|del|in|is|not|and|or)\b/g,
-          '<span class="keyword">$1</span>',
-        )
-        .replace(/\b(True|False|None)\b/g, '<span class="boolean">$1</span>')
-        .replace(/(["']{3}[\s\S]*?["']{3}|["'](?:\\.|[^"'\\])*?["'])/g, '<span class="string">$1</span>')
-        .replace(/(#.*$)/gm, '<span class="comment">$1</span>')
-        .replace(/\b(\d+\.?\d*)\b/g, '<span class="number">$1</span>')
-        .replace(
-          /\b(print|len|range|enumerate|zip|map|filter|sorted|sum|max|min|abs|round|type|isinstance|str|int|float|list|dict|set|tuple)\b/g,
-          '<span class="builtin">$1</span>',
-        )
-    }
-    // HTML
-    else if (langLower === "html") {
-      return code
-        .replace(
-          /(&lt;\/?)(\w+)((?:\s+\w+(?:=(?:"[^"]*"|'[^']*'))?)*\s*)(\/?)(&gt;)/g,
-          '<span class="tag">$1</span><span class="tag-name">$2</span><span class="attr">$3</span><span class="tag">$4$5</span>',
-        )
-        .replace(
-          /(\w+)(=)(["'])([^"']*)\3/g,
-          '<span class="attr-name">$1</span><span class="operator">$2</span><span class="string">$3$4$3</span>',
-        )
-        .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="comment">$1</span>')
-    }
-    // CSS
-    else if (langLower === "css") {
-      return code
-        .replace(/([.#]?[\w-]+)(\s*{)/g, '<span class="selector">$1</span>$2')
-        .replace(/([\w-]+)(\s*:)/g, '<span class="property">$1</span><span class="operator">$2</span>')
-        .replace(/(:)(\s*)([^;{}]+)/g, '$1$2<span class="value">$3</span>')
-        .replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="comment">$1</span>')
-        .replace(/\b(\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|deg|s|ms))\b/g, '<span class="number">$1</span>')
-    }
-    // SQL
-    else if (langLower === "sql") {
-      return code
-        .replace(
-          /\b(SELECT|FROM|WHERE|JOIN|INNER|LEFT|RIGHT|FULL|OUTER|ON|GROUP|BY|ORDER|HAVING|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|DATABASE|INDEX|ALTER|DROP|TRUNCATE|UNION|DISTINCT|AS|AND|OR|NOT|NULL|IS|LIKE|IN|BETWEEN|EXISTS|CASE|WHEN|THEN|ELSE|END)\b/gi,
-          '<span class="keyword">$1</span>',
-        )
-        .replace(
-          /\b(VARCHAR|INT|INTEGER|BIGINT|SMALLINT|DECIMAL|FLOAT|DOUBLE|BOOLEAN|DATE|TIME|TIMESTAMP|TEXT|BLOB)\b/gi,
-          '<span class="type">$1</span>',
-        )
-        .replace(/(["'])((?:\\.|(?!\1)[^\\])*?)\1/g, '<span class="string">$1$2$1</span>')
-        .replace(/(--.*$)/gm, '<span class="comment">$1</span>')
-        .replace(/\b(\d+\.?\d*)\b/g, '<span class="number">$1</span>')
-    }
-    // Bash/Shell
-    else if (["bash", "shell", "sh", "zsh"].includes(langLower)) {
-      return code
-        .replace(
-          /\b(if|then|else|elif|fi|for|while|do|done|case|esac|function|return|exit|break|continue|local|export|source|alias|unset|readonly|declare)\b/g,
-          '<span class="keyword">$1</span>',
-        )
-        .replace(/(["'])((?:\\.|(?!\1)[^\\])*?)\1/g, '<span class="string">$1$2$1</span>')
-        .replace(/(#.*$)/gm, '<span class="comment">$1</span>')
-        .replace(/(\$\w+|\$\{[^}]+\})/g, '<span class="variable">$1</span>')
-        .replace(
-          /\b(echo|cat|ls|cd|pwd|mkdir|rmdir|rm|cp|mv|grep|sed|awk|sort|uniq|head|tail|wc|find|chmod|chown|ps|kill|top|df|du|tar|gzip|curl|wget|ssh|scp|rsync)\b/g,
-          '<span class="builtin">$1</span>',
-        )
-    }
-    // JSON
-    else if (langLower === "json") {
-      return code
-        .replace(/(["'])([^"']*?)\1(\s*:)/g, '<span class="property">$1$2$1</span>$3')
-        .replace(/(:)(\s*)(["'])([^"']*?)\3/g, '$1$2<span class="string">$3$4$3</span>')
-        .replace(/\b(true|false|null)\b/g, '<span class="boolean">$1</span>')
-        .replace(/\b(\d+\.?\d*)\b/g, '<span class="number">$1</span>')
+      const keywords = [
+        "def",
+        "class",
+        "if",
+        "elif",
+        "else",
+        "for",
+        "while",
+        "return",
+        "import",
+        "from",
+        "try",
+        "except",
+        "finally",
+        "with",
+        "as",
+      ]
+
+      const booleans = ["True", "False", "None"]
+      const builtins = ["print", "len", "range", "enumerate", "zip", "map", "filter"]
+
+      keywords.forEach((keyword) => {
+        const regex = new RegExp(`\\b${keyword}\\b`, "g")
+        escapedCode = escapedCode.replace(regex, `${keyword}`)
+      })
+
+      booleans.forEach((bool) => {
+        const regex = new RegExp(`\\b${bool}\\b`, "g")
+        escapedCode = escapedCode.replace(regex, `${bool}`)
+      })
+
+      builtins.forEach((builtin) => {
+        const regex = new RegExp(`\\b${builtin}\\b`, "g")
+        escapedCode = escapedCode.replace(regex, `${builtin}`)
+      })
+
+      // Comentários Python
+      escapedCode = escapedCode.replace(/(#.*$)/gm, '<span style="color: #6b7280; font-style: italic;">$1</span>')
+
+      // Números
+      escapedCode = escapedCode.replace(/\b(\d+)\b/g, '<span style="color: #60a5fa;">$1</span>')
     }
 
-    return code
+    return escapedCode
   }
 
   const lines = code.split("\n")
 
   return (
-    <div className="group my-6 relative">
+    <div className="group my-4 sm:my-6 relative">
       {/* Code block header */}
-      <div className="flex items-center justify-between bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-t-xl px-4 py-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between bg-gray-900/90 backdrop-blur-sm border border-gray-700/50 rounded-t-xl px-2 sm:px-4 py-2 sm:py-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {getLanguageIcon(language)}
-          <span className="text-sm font-medium text-white/80 uppercase tracking-wider">{language}</span>
-          <div className="h-4 w-px bg-gray-600/50"></div>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs sm:text-sm font-medium text-white/80 uppercase tracking-wider">{language}</span>
+          <div className="h-3 sm:h-4 w-px bg-gray-600/50 hidden xs:block"></div>
+          <span className="text-[10px] sm:text-xs text-gray-400 hidden xs:block">
             {lines.length} {lines.length === 1 ? "linha" : "linhas"}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-red-400/70 hover:bg-red-400 transition-colors"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-400/70 hover:bg-yellow-400 transition-colors"></div>
-            <div className="w-3 h-3 rounded-full bg-green-400/70 hover:bg-green-400 transition-colors"></div>
-          </div>
+        <button
+          onClick={copyToClipboard}
+          className="relative flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs text-gray-300 hover:text-white bg-gray-800/50 hover:bg-gray-700/50 rounded-lg border border-gray-600/30 hover:border-gray-500/50 transition-all duration-200 group/btn active:scale-95"
+        >
+          {copied ? (
+            <>
+              <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-green-400" />
+              <span className="text-green-400">Copiado!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              <span>Copiar</span>
+            </>
+          )}
 
-          <div className="h-4 w-px bg-gray-600/50 mx-2"></div>
-
-          <button
-            onClick={copyToClipboard}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-gray-800/50 hover:bg-gray-700/50 rounded-lg border border-gray-600/30 hover:border-gray-500/50 transition-all duration-200"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3 h-3 text-green-400" />
-                <span className="text-green-400">Copiado!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3 h-3" />
-                <span>Copiar</span>
-              </>
-            )}
-          </button>
-        </div>
+          {/* Click glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-purple-400/20 rounded-lg opacity-0 group-active/btn:opacity-100 transition-opacity duration-150"></div>
+        </button>
       </div>
 
       {/* Code content */}
-      <div className="relative bg-gray-900/95 backdrop-blur-sm border-x border-b border-gray-700/50 rounded-b-xl overflow-hidden">
+      <div className="relative bg-gray-900/90 backdrop-blur-sm border-x border-b border-gray-700/50 rounded-b-xl overflow-hidden">
         <div className="overflow-x-auto">
           <div className="flex min-w-full">
             {/* Line numbers */}
             {showLineNumbers && (
-              <div className="flex-shrink-0 bg-gray-800/50 border-r border-gray-700/50 px-3 py-4 select-none">
+              <div className="flex-shrink-0 bg-gray-800/50 border-r border-gray-700/50 px-2 sm:px-3 py-2 sm:py-4 select-none">
                 {lines.map((_, index) => (
-                  <div key={index} className="text-xs text-gray-500 leading-6 text-right font-mono">
+                  <div
+                    key={index}
+                    className="text-[10px] sm:text-xs text-gray-500 leading-5 sm:leading-6 text-right font-mono"
+                  >
                     {index + 1}
                   </div>
                 ))}
@@ -200,12 +214,14 @@ function CodeBlock({ language, code, showLineNumbers = true }: CodeBlockProps) {
             )}
 
             {/* Code */}
-            <div className="flex-1 p-4">
-              <pre className="text-sm leading-6 font-mono">
+            <div className="flex-1 p-2 sm:p-4">
+              <pre className="text-xs sm:text-sm leading-5 sm:leading-6 font-mono">
                 {lines.map((line, index) => (
-                  <div key={index} className="hover:bg-white/5 transition-colors duration-150 -mx-4 px-4">
+                  <div
+                    key={index}
+                    className="hover:bg-white/5 transition-colors duration-150 -mx-2 sm:-mx-4 px-2 sm:px-4"
+                  >
                     <code
-                      className="syntax-highlight"
                       dangerouslySetInnerHTML={{
                         __html: highlightCode(line || " ", language),
                       }}
@@ -217,33 +233,33 @@ function CodeBlock({ language, code, showLineNumbers = true }: CodeBlockProps) {
           </div>
         </div>
 
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-cyan-500/5 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        {/* Code block glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
       </div>
-
-      <style jsx>{`
-        .syntax-highlight .keyword { color: #ff79c6; font-weight: 600; }
-        .syntax-highlight .string { color: #f1fa8c; }
-        .syntax-highlight .comment { color: #6272a4; font-style: italic; opacity: 0.8; }
-        .syntax-highlight .number { color: #bd93f9; }
-        .syntax-highlight .boolean { color: #ff79c6; font-weight: 500; }
-        .syntax-highlight .builtin { color: #8be9fd; font-weight: 500; }
-        .syntax-highlight .tag { color: #ff79c6; }
-        .syntax-highlight .tag-name { color: #ff79c6; font-weight: 600; }
-        .syntax-highlight .attr { color: #50fa7b; }
-        .syntax-highlight .attr-name { color: #50fa7b; }
-        .syntax-highlight .selector { color: #50fa7b; font-weight: 500; }
-        .syntax-highlight .property { color: #8be9fd; }
-        .syntax-highlight .value { color: #f1fa8c; }
-        .syntax-highlight .operator { color: #ff79c6; }
-        .syntax-highlight .type { color: #8be9fd; font-weight: 500; }
-        .syntax-highlight .variable { color: #ffb86c; }
-      `}</style>
     </div>
   )
 }
 
-export default function MessageContent({ content }: MessageContentProps) {
+function TypingEffect({ text }: { text: string }) {
+  const [displayedText, setDisplayedText] = useState("")
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timer = setTimeout(() => {
+        setDisplayedText((prev) => prev + text[currentIndex])
+        setCurrentIndex((prev) => prev + 1)
+      }, 20) // Velocidade da digitação
+
+      return () => clearTimeout(timer)
+    }
+  }, [currentIndex, text])
+
+  return <span>{displayedText}</span>
+}
+
+// Modificar o processamento de markdown para ser mais responsivo
+export default function MessageContent({ content, isTyping = false }: MessageContentProps) {
   const processMarkdown = (text: string) => {
     const elements: JSX.Element[] = []
     const lines = text.split("\n")
@@ -276,16 +292,16 @@ export default function MessageContent({ content }: MessageContentProps) {
         const HeaderComponent = level === 1 ? "h1" : level === 2 ? "h2" : level === 3 ? "h3" : "h4"
         const className =
           level === 1
-            ? "text-2xl sm:text-3xl font-bold mb-6 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent"
+            ? "text-xl sm:text-2xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent"
             : level === 2
-              ? "text-xl sm:text-2xl font-semibold mb-4 text-cyan-300 border-b border-cyan-500/30 pb-2"
+              ? "text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-cyan-300 border-b border-cyan-500/30 pb-2"
               : level === 3
-                ? "text-lg sm:text-xl font-semibold mb-3 text-purple-300"
-                : "text-base sm:text-lg font-semibold mb-2 text-blue-300"
+                ? "text-base sm:text-lg font-semibold mb-2 sm:mb-3 text-purple-300"
+                : "text-sm sm:text-base font-semibold mb-1.5 sm:mb-2 text-blue-300"
 
         elements.push(
           <HeaderComponent key={`header-${elements.length}`} className={className}>
-            {processInlineFormatting(text)}
+            {isTyping && elements.length === 0 ? <TypingEffect text={text} /> : processInlineFormatting(text)}
           </HeaderComponent>,
         )
         currentIndex++
@@ -310,13 +326,19 @@ export default function MessageContent({ content }: MessageContentProps) {
         }
 
         const ListComponent = isOrdered ? "ol" : "ul"
-        const listClassName = isOrdered ? "list-decimal list-inside space-y-2 mb-4 pl-4" : "space-y-2 mb-4 pl-4"
+        const listClassName = isOrdered
+          ? "list-decimal list-inside space-y-1.5 sm:space-y-2 mb-3 sm:mb-4 pl-2 sm:pl-4"
+          : "space-y-1.5 sm:space-y-2 mb-3 sm:mb-4 pl-2 sm:pl-4"
 
         elements.push(
           <ListComponent key={`list-${elements.length}`} className={listClassName}>
             {listItems.map((item, index) => (
-              <li key={index} className="flex items-start gap-3 text-white/90">
-                {!isOrdered && <span className="text-cyan-400 mt-1 text-sm">▸</span>}
+              <li
+                key={index}
+                className="flex items-start gap-2 sm:gap-3 text-white/90 text-sm sm:text-base animate-in slide-in-from-left-4 duration-300"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                {!isOrdered && <span className="text-cyan-400 mt-1 text-xs sm:text-sm">▸</span>}
                 <span className="flex-1">{processInlineFormatting(item)}</span>
               </li>
             ))}
@@ -342,9 +364,9 @@ export default function MessageContent({ content }: MessageContentProps) {
         elements.push(
           <blockquote
             key={`quote-${elements.length}`}
-            className="border-l-4 border-purple-500/50 pl-6 py-3 my-4 bg-purple-500/5 rounded-r-xl backdrop-blur-sm"
+            className="border-l-4 border-purple-500/50 pl-3 sm:pl-6 py-2 sm:py-3 my-3 sm:my-4 bg-purple-500/5 rounded-r-xl backdrop-blur-sm animate-in slide-in-from-left-4 duration-500"
           >
-            <div className="text-white/80 italic space-y-2">
+            <div className="text-white/80 italic space-y-1.5 sm:space-y-2 text-sm sm:text-base">
               {quoteLines.map((quoteLine, index) => (
                 <p key={index}>{processInlineFormatting(quoteLine)}</p>
               ))}
@@ -352,60 +374,6 @@ export default function MessageContent({ content }: MessageContentProps) {
           </blockquote>,
         )
         continue
-      }
-
-      // Tables
-      if (line.includes("|") && lines[currentIndex + 1]?.includes("|")) {
-        const tableLines: string[] = []
-
-        while (currentIndex < lines.length && lines[currentIndex].includes("|")) {
-          tableLines.push(lines[currentIndex])
-          currentIndex++
-        }
-
-        if (tableLines.length > 1) {
-          const headers = tableLines[0]
-            .split("|")
-            .map((h) => h.trim())
-            .filter((h) => h)
-          const rows = tableLines.slice(2).map((row) =>
-            row
-              .split("|")
-              .map((cell) => cell.trim())
-              .filter((cell) => cell),
-          )
-
-          elements.push(
-            <div key={`table-${elements.length}`} className="overflow-x-auto my-6">
-              <table className="w-full border-collapse border border-gray-700/50 rounded-xl overflow-hidden backdrop-blur-sm">
-                <thead>
-                  <tr className="bg-gray-800/50">
-                    {headers.map((header, index) => (
-                      <th
-                        key={index}
-                        className="border border-gray-700/50 px-4 py-3 text-cyan-300 font-semibold text-left"
-                      >
-                        {processInlineFormatting(header)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, rowIndex) => (
-                    <tr key={rowIndex} className="hover:bg-white/5 transition-colors">
-                      {row.map((cell, cellIndex) => (
-                        <td key={cellIndex} className="border border-gray-700/50 px-4 py-3 text-white/90">
-                          {processInlineFormatting(cell)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>,
-          )
-          continue
-        }
       }
 
       // Regular paragraphs
@@ -425,9 +393,17 @@ export default function MessageContent({ content }: MessageContentProps) {
           currentIndex++
         }
 
+        const paragraphText = paragraphLines.join(" ")
         elements.push(
-          <p key={`paragraph-${elements.length}`} className="mb-4 text-white/90 leading-relaxed">
-            {processInlineFormatting(paragraphLines.join(" "))}
+          <p
+            key={`paragraph-${elements.length}`}
+            className="mb-3 sm:mb-4 text-white/90 text-sm sm:text-base leading-relaxed animate-in fade-in duration-500"
+          >
+            {isTyping && elements.length === 0 ? (
+              <TypingEffect text={paragraphText} />
+            ) : (
+              processInlineFormatting(paragraphText)
+            )}
           </p>,
         )
         continue
@@ -450,28 +426,10 @@ export default function MessageContent({ content }: MessageContentProps) {
       parts.push(
         <code
           key={`inline-${keyCounter}`}
-          className="bg-gray-800/60 text-cyan-300 px-2 py-1 rounded-md text-sm font-mono border border-gray-700/50"
+          className="bg-gray-800/60 text-cyan-300 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm font-mono border border-gray-700/50 hover:bg-gray-700/60 transition-colors duration-200"
         >
           {code}
         </code>,
-      )
-      keyCounter++
-      return placeholder
-    })
-
-    // Process links
-    currentText = currentText.replace(/\[([^\]]+)\]$$([^)]+)$$/g, (match, text, url) => {
-      const placeholder = `__LINK_${keyCounter}__`
-      parts.push(
-        <a
-          key={`link-${keyCounter}`}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors duration-200"
-        >
-          {text}
-        </a>,
       )
       keyCounter++
       return placeholder
@@ -502,7 +460,7 @@ export default function MessageContent({ content }: MessageContentProps) {
     })
 
     // Split by placeholders and reconstruct
-    const segments = currentText.split(/(__(?:INLINE_CODE|LINK|BOLD|ITALIC)_\d+__)/)
+    const segments = currentText.split(/(__(?:INLINE_CODE|BOLD|ITALIC)_\d+__)/)
     const result: (string | JSX.Element)[] = []
 
     segments.forEach((segment, index) => {
